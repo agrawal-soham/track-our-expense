@@ -439,7 +439,12 @@ function MainApp() {
             )}
 
             {activeTab === 'analytics' && analytics && (
-              <AnalyticsTab trip={activeTrip} analytics={analytics} />
+              <AnalyticsTab
+                trip={activeTrip}
+                analytics={analytics}
+                currentUser={profile}
+                expenses={expenses}
+              />
             )}
           </>
         )}
