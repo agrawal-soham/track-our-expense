@@ -2,13 +2,14 @@
 
 import React, { useState } from 'react';
 import { Trip, UserProfile } from '@/types';
-import { Compass, Users, Share2, Plus, Check, ChevronDown, LogOut, AtSign, Copy } from 'lucide-react';
+import { Compass, Users, Share2, Plus, Check, ChevronDown, LogOut, Copy, ShieldAlert } from 'lucide-react';
 
 interface NavbarProps {
   trip: Trip | null;
   currentUser: UserProfile;
   onOpenCreateTrip: () => void;
   onOpenAddMember: () => void;
+  onOpenAdmin?: () => void;
   tripsList: Trip[];
   onSelectTrip: (tripId: string) => void;
   onSignOut: () => void;
@@ -19,6 +20,7 @@ export default function Navbar({
   currentUser,
   onOpenCreateTrip,
   onOpenAddMember,
+  onOpenAdmin,
   tripsList,
   onSelectTrip,
   onSignOut,
@@ -27,6 +29,13 @@ export default function Navbar({
   const [copiedId, setCopiedId] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  // Check if current user is admin
+  const isAdmin =
+    currentUser.is_admin ||
+    currentUser.email === 'soham3389@gmail.com' ||
+    currentUser.email === 'soham.agrawal005@gmail.com' ||
+    currentUser.username === 'soham24';
 
   const copyInvite = () => {
     if (!trip) return;
@@ -68,6 +77,11 @@ export default function Navbar({
                         CODE: {trip.code}
                       </span>
                       <span>• {trip.members.length} members</span>
+                      {trip.status === 'paused' && (
+                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded">
+                          PAUSED
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <span className="text-xs text-slate-400">No active trip</span>
@@ -121,6 +135,18 @@ export default function Navbar({
 
           {/* Right Action buttons */}
           <div className="flex items-center gap-2">
+            {/* Overall Admin Button */}
+            {isAdmin && onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                title="Overall Admin Console"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-bold transition shadow-2xs"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+            )}
+
             {trip && (
               <>
                 <button
@@ -189,6 +215,18 @@ export default function Navbar({
                       {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
+
+                  {isAdmin && onOpenAdmin && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onOpenAdmin();
+                      }}
+                      className="w-full flex items-center gap-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 p-2 rounded-xl transition"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-rose-600" /> Platform Admin Console
+                    </button>
+                  )}
 
                   <button
                     onClick={() => {

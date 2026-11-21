@@ -13,6 +13,7 @@ import AddExpenseModal from '@/components/AddExpenseModal';
 import RaiseConcernModal from '@/components/RaiseConcernModal';
 import CreateTripModal from '@/components/CreateTripModal';
 import AddMemberModal from '@/components/AddMemberModal';
+import AdminModal from '@/components/AdminModal';
 import {
   Receipt,
   Scale,
@@ -21,6 +22,7 @@ import {
   Plus,
   Loader2,
   Compass,
+  AlertTriangle,
 } from 'lucide-react';
 
 function MainApp() {
@@ -42,6 +44,7 @@ function MainApp() {
   const [selectedExpenseForConcern, setSelectedExpenseForConcern] = useState<Expense | null>(null);
   const [showCreateTrip, setShowCreateTrip] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
 
   // Fetch all trips for currently authenticated user
   const fetchMyTrips = useCallback(async (userId: string) => {
@@ -100,7 +103,7 @@ function MainApp() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ userId: profile!.id }),
             });
-            const refreshed = await fetchMyTrips(profile!.id);
+            await fetchMyTrips(profile!.id);
             await fetchTripDetails(data.trip.id);
             return;
           }
@@ -142,6 +145,10 @@ function MainApp() {
     date: string;
   }) => {
     if (!activeTrip) return;
+    if (activeTrip.status === 'paused') {
+      alert('This trip is currently paused by admin. New expenses cannot be added.');
+      return;
+    }
     const res = await fetch(`/api/trips/${activeTrip.id}/expenses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -254,7 +261,7 @@ function MainApp() {
     if (!res.ok) throw new Error('Failed to create trip');
     const result = await res.json();
 
-    const trips = await fetchMyTrips(profile.id);
+    await fetchMyTrips(profile.id);
     await fetchTripDetails(result.trip.id);
   };
 
@@ -280,6 +287,8 @@ function MainApp() {
     (s) => s.status === 'pending' && s.toUser === profile.id
   ).length;
 
+  const isTripPaused = activeTrip?.status === 'paused';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Top Navbar */}
@@ -288,6 +297,7 @@ function MainApp() {
         currentUser={profile}
         onOpenCreateTrip={() => setShowCreateTrip(true)}
         onOpenAddMember={() => setShowAddMember(true)}
+        onOpenAdmin={() => setShowAdminModal(true)}
         tripsList={tripsList}
         onSelectTrip={(id) => fetchTripDetails(id)}
         onSignOut={signOut}
@@ -321,6 +331,19 @@ function MainApp() {
           </div>
         ) : (
           <>
+            {/* Trip Paused Alert Banner */}
+            {isTripPaused && (
+              <div className="mb-4 bg-amber-500/10 border-2 border-amber-400 text-amber-950 p-4 rounded-2xl flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0" />
+                <div>
+                  <div className="font-bold text-sm">This Trip is Paused by Platform Admin</div>
+                  <div className="text-xs text-amber-800">
+                    Existing expenses, balances, and calculations are frozen. No new expenses can be added until resumed.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* View Tab Buttons Bar */}
             <div className="bg-white p-1 rounded-2xl border border-slate-200/90 shadow-2xs mb-5 grid grid-cols-4 gap-1">
               <button
@@ -423,7 +446,7 @@ function MainApp() {
       </main>
 
       {/* Floating Action Button (Add Expense) */}
-      {activeTrip && (
+      {activeTrip && !isTripPaused && (
         <div className="fixed bottom-6 right-6 z-40">
           <button
             onClick={() => setShowAddExpense(true)}
@@ -472,6 +495,17 @@ function MainApp() {
         onClose={() => setShowCreateTrip(false)}
         currentUser={profile}
         onCreateTrip={handleCreateTrip}
+      />
+
+      <AdminModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
+        onTripUpdated={() => {
+          if (profile) {
+            fetchMyTrips(profile.id);
+            if (activeTrip) fetchTripDetails(activeTrip.id);
+          }
+        }}
       />
     </div>
   );

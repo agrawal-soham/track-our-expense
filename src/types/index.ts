@@ -6,6 +6,7 @@ export interface UserProfile {
   full_name: string;
   email: string;
   avatar_url?: string;
+  is_admin?: boolean;
   created_at: string;
 }
 
@@ -25,6 +26,7 @@ export interface Trip {
   name: string;
   description?: string;
   currency: string;
+  status?: 'active' | 'paused';
   createdBy: string; // user profile UUID
   createdAt: string;
   members: Member[];
