@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trip, Expense, Member, Concern } from '@/types';
+import { Trip, Expense, Member, Concern, UserProfile } from '@/types';
 import {
   Banknote,
   Smartphone,
@@ -10,15 +10,15 @@ import {
   Users,
   CheckCircle2,
   Calendar,
-  MessageSquare,
   Sparkles,
+  AtSign,
 } from 'lucide-react';
 
 interface TimelineTabProps {
   trip: Trip;
   expenses: Expense[];
   concerns: Concern[];
-  activeMember: Member | null;
+  currentUser: UserProfile;
   onOpenAddExpense: () => void;
   onOpenRaiseConcern: (expense: Expense) => void;
   onDeleteExpense: (expenseId: string) => Promise<void>;
@@ -29,7 +29,7 @@ export default function TimelineTab({
   trip,
   expenses,
   concerns,
-  activeMember,
+  currentUser,
   onOpenAddExpense,
   onOpenRaiseConcern,
   onDeleteExpense,
@@ -43,9 +43,10 @@ export default function TimelineTab({
 
   const categories = ['All', ...Array.from(new Set(expenses.map((e) => e.category || 'General')))];
 
-  const filteredExpenses = filterCategory === 'All'
-    ? expenses
-    : expenses.filter((e) => (e.category || 'General') === filterCategory);
+  const filteredExpenses =
+    filterCategory === 'All'
+      ? expenses
+      : expenses.filter((e) => (e.category || 'General') === filterCategory);
 
   const handleDelete = async (expenseId: string) => {
     if (!confirm('Are you sure you want to delete this expense entry?')) return;
@@ -86,7 +87,7 @@ export default function TimelineTab({
           </div>
           <h3 className="text-lg font-bold text-slate-800 mb-1">No expenses recorded yet</h3>
           <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6">
-            Be the first to log a spend! Everyone in {trip.name} will see their balance update in real time.
+            Log an expense! Everyone in {trip.name} will see their balance update automatically in cloud Supabase.
           </p>
           <button
             onClick={onOpenAddExpense}
@@ -99,9 +100,9 @@ export default function TimelineTab({
         <div className="space-y-3.5">
           {filteredExpenses.map((expense) => {
             const payer = memberMap.get(expense.paidBy);
-            const isPayerMe = activeMember?.id === expense.paidBy;
+            const isPayerMe = currentUser.id === expense.paidBy;
             const canDelete =
-              activeMember?.id === expense.createdBy || activeMember?.id === trip.createdBy;
+              currentUser.id === expense.createdBy || currentUser.id === trip.createdBy;
 
             const expenseConcerns = concerns.filter((c) => c.expenseId === expense.id);
             const unresolvedConcerns = expenseConcerns.filter((c) => !c.resolved);
@@ -111,7 +112,7 @@ export default function TimelineTab({
                 ? Math.round((expense.amount / expense.splitBetween.length) * 100) / 100
                 : 0;
 
-            const isMeInSplit = activeMember ? expense.splitBetween.includes(activeMember.id) : false;
+            const isMeInSplit = expense.splitBetween.includes(currentUser.id);
 
             return (
               <div
@@ -176,7 +177,13 @@ export default function TimelineTab({
                         {payer?.name ? payer.name.charAt(0).toUpperCase() : '?'}
                       </div>
                       <span className="text-slate-600">
-                        Paid by <strong className="text-slate-900">{isPayerMe ? 'You' : payer?.name || 'Unknown'}</strong>
+                        Paid by{' '}
+                        <strong className="text-slate-900">
+                          {isPayerMe ? 'You' : payer?.name || 'Unknown'}
+                        </strong>{' '}
+                        <span className="text-blue-600 font-mono text-[11px]">
+                          @{payer?.username}
+                        </span>
                       </span>
                     </div>
 
@@ -191,7 +198,7 @@ export default function TimelineTab({
                           return (
                             <div
                               key={mId}
-                              title={m?.name || 'Member'}
+                              title={`${m?.name || 'Member'} (@${m?.username || ''})`}
                               className="w-5 h-5 rounded-full ring-2 ring-white flex items-center justify-center text-white text-[9px] font-bold"
                               style={{ backgroundColor: m?.color || '#64748b' }}
                             >
@@ -218,7 +225,8 @@ export default function TimelineTab({
                       {unresolvedConcerns.map((c) => (
                         <div key={c.id} className="pl-5 flex items-start justify-between gap-2">
                           <div>
-                            <span className="font-bold text-amber-950">{c.raisedByName}:</span> {c.message}
+                            <span className="font-bold text-amber-950">{c.raisedByName}:</span>{' '}
+                            {c.message}
                           </div>
                           <button
                             onClick={() => onResolveConcern(c.id)}
@@ -238,7 +246,11 @@ export default function TimelineTab({
                       className="inline-flex items-center gap-1.5 text-xs text-amber-700 hover:text-amber-800 hover:bg-amber-50 px-2.5 py-1.5 rounded-lg font-medium transition"
                     >
                       <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{expenseConcerns.length > 0 ? `${expenseConcerns.length} Concern(s)` : 'Raise Concern'}</span>
+                      <span>
+                        {expenseConcerns.length > 0
+                          ? `${expenseConcerns.length} Concern(s)`
+                          : 'Raise Concern'}
+                      </span>
                     </button>
 
                     {canDelete && (

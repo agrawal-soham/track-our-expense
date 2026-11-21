@@ -1,21 +1,31 @@
 export type PaymentMode = 'cash' | 'online';
 
+export interface UserProfile {
+  id: string; // auth.users UUID
+  username: string; // unique handle e.g. @soham
+  full_name: string;
+  email: string;
+  avatar_url?: string;
+  created_at: string;
+}
+
 export interface Member {
-  id: string;
+  id: string; // user profile UUID
+  username?: string;
   name: string;
+  email?: string;
   avatar?: string;
   color: string;
-  pin?: string;
   joinedAt: string;
 }
 
 export interface Trip {
   id: string;
-  code: string; // 6-character short code for easy joining (e.g. "GOA24")
+  code: string; // 6-character short code
   name: string;
   description?: string;
   currency: string;
-  createdBy: string;
+  createdBy: string; // user profile UUID
   createdAt: string;
   members: Member[];
 }
@@ -25,8 +35,8 @@ export interface Expense {
   tripId: string;
   title: string;
   amount: number;
-  paidBy: string; // member id
-  splitBetween: string[]; // member ids
+  paidBy: string; // user profile UUID
+  splitBetween: string[]; // user profile UUIDs
   paymentMode: PaymentMode;
   remarks?: string;
   category: string;
@@ -39,7 +49,7 @@ export interface Concern {
   id: string;
   expenseId: string;
   tripId: string;
-  raisedBy: string; // member id
+  raisedBy: string; // user profile UUID
   raisedByName: string;
   message: string;
   resolved: boolean;
@@ -51,8 +61,8 @@ export type SettlementStatus = 'pending' | 'approved' | 'rejected';
 export interface Settlement {
   id: string;
   tripId: string;
-  fromUser: string; // member id who paid
-  toUser: string; // member id who received
+  fromUser: string; // user profile UUID
+  toUser: string; // user profile UUID
   amount: number;
   paymentMode: PaymentMode;
   notes?: string;
@@ -65,19 +75,22 @@ export interface Settlement {
 export interface MemberBalance {
   memberId: string;
   memberName: string;
+  username: string;
   memberColor: string;
   totalPaid: number;
   totalShare: number;
   settlementsPaid: number;
   settlementsReceived: number;
-  netBalance: number; // positive = owed to them, negative = they owe
+  netBalance: number;
 }
 
 export interface SimplifiedDebt {
   fromMemberId: string;
   fromMemberName: string;
+  fromUsername: string;
   toMemberId: string;
   toMemberName: string;
+  toUsername: string;
   amount: number;
 }
 

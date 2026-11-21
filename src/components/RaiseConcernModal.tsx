@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Expense, Member, Trip } from '@/types';
+import { Expense, Trip, UserProfile } from '@/types';
 import { AlertCircle, X } from 'lucide-react';
 
 interface RaiseConcernModalProps {
   trip: Trip;
   expense: Expense | null;
-  activeMember: Member | null;
+  currentUser: UserProfile;
   isOpen: boolean;
   onClose: () => void;
   onSubmitConcern: (expenseId: string, message: string) => Promise<void>;
@@ -16,7 +16,7 @@ interface RaiseConcernModalProps {
 export default function RaiseConcernModal({
   trip,
   expense,
-  activeMember,
+  currentUser,
   isOpen,
   onClose,
   onSubmitConcern,
@@ -81,13 +81,13 @@ export default function RaiseConcernModal({
                 required
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="e.g. I didn't join for this activity, please remove me from the split, or the total bill was ₹400."
+                placeholder="e.g. I didn't take this ride, please exclude me from split, or total bill was ₹400."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
 
             <p className="text-[11px] text-slate-400">
-              Posting as: <strong className="text-slate-700">{activeMember?.name || 'Anonymous Member'}</strong>
+              Posting as: <strong className="text-slate-700">{currentUser.full_name}</strong> <span className="font-mono text-blue-600">(@{currentUser.username})</span>
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

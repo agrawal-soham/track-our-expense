@@ -67,12 +67,12 @@ export function calculateBalances(
     const sPaid = round2(settlementsPaidMap.get(m.id) || 0);
     const sReceived = round2(settlementsReceivedMap.get(m.id) || 0);
 
-    // netBalance = (Expenses Paid - Expense Share) + (Settlement Paid - Settlement Received)
     const netBalance = round2((paid - share) + (sPaid - sReceived));
 
     return {
       memberId: m.id,
       memberName: m.name,
+      username: m.username || m.name,
       memberColor: m.color || '#3b82f6',
       totalPaid: paid,
       totalShare: share,
@@ -99,7 +99,6 @@ function simplifyDebts(
   balances: MemberBalance[],
   memberMap: Map<string, Member>
 ): SimplifiedDebt[] {
-  // Separate into debtors (net < -0.01) and creditors (net > 0.01)
   const debtors: { id: string; amount: number }[] = [];
   const creditors: { id: string; amount: number }[] = [];
 
@@ -113,7 +112,6 @@ function simplifyDebts(
 
   const result: SimplifiedDebt[] = [];
 
-  // Greedy match largest debtor with largest creditor
   debtors.sort((a, b) => b.amount - a.amount);
   creditors.sort((a, b) => b.amount - a.amount);
 
@@ -127,11 +125,16 @@ function simplifyDebts(
     const transferAmount = round2(Math.min(debtor.amount, creditor.amount));
 
     if (transferAmount > 0.01) {
+      const fromM = memberMap.get(debtor.id);
+      const toM = memberMap.get(creditor.id);
+
       result.push({
         fromMemberId: debtor.id,
-        fromMemberName: memberMap.get(debtor.id)?.name || 'Unknown',
+        fromMemberName: fromM?.name || 'Unknown',
+        fromUsername: fromM?.username || '',
         toMemberId: creditor.id,
-        toMemberName: memberMap.get(creditor.id)?.name || 'Unknown',
+        toMemberName: toM?.name || 'Unknown',
+        toUsername: toM?.username || '',
         amount: transferAmount,
       });
     }
@@ -164,7 +167,6 @@ export function calculateAnalytics(
     settlements
   );
 
-  // Category breakdown
   const categoryMap = new Map<string, number>();
   let cashTotal = 0;
   let onlineTotal = 0;

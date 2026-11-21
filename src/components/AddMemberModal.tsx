@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trip } from '@/types';
-import { UserPlus, X, Copy, Check, Users } from 'lucide-react';
+import { Trip, UserProfile } from '@/types';
+import UserSearchInput from './UserSearchInput';
+import { UserPlus, X, Copy, Check, Users, AtSign } from 'lucide-react';
 
 interface AddMemberModalProps {
   trip: Trip;
   isOpen: boolean;
   onClose: () => void;
-  onAddMember: (name: string) => Promise<void>;
+  onAddMember: (userId: string) => Promise<void>;
 }
 
 export default function AddMemberModal({
@@ -17,20 +18,18 @@ export default function AddMemberModal({
   onClose,
   onAddMember,
 }: AddMemberModalProps) {
-  const [name, setName] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
-
+  const handleAdd = async () => {
+    if (!selectedUser) return;
     setSubmitting(true);
     try {
-      await onAddMember(name.trim());
-      setName('');
+      await onAddMember(selectedUser.id);
+      setSelectedUser(null);
       onClose();
     } finally {
       setSubmitting(false);
@@ -66,12 +65,12 @@ export default function AddMemberModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           {/* Shareable Invite Code Box */}
           <div className="bg-blue-50/70 border border-blue-200/60 rounded-2xl p-4">
-            <div className="text-xs font-semibold text-blue-800 mb-1">Share with Friends</div>
+            <div className="text-xs font-semibold text-blue-800 mb-1">Invite Code</div>
             <p className="text-xs text-blue-900/80 mb-3">
-              Friends can open the link or enter the code to join on their own phone:
+              Friends can log in on their device and enter this code:
             </p>
             <div className="flex items-center justify-between bg-white rounded-xl p-2.5 border border-blue-200">
               <span className="font-mono font-bold text-sm text-slate-800 tracking-wider">
@@ -82,57 +81,64 @@ export default function AddMemberModal({
                 className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg transition"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Link Copied!' : 'Copy Link'}</span>
+                <span>{copied ? 'Copied!' : 'Copy Link'}</span>
               </button>
             </div>
           </div>
 
-          {/* Current Members List */}
+          {/* Current Members with User IDs */}
           <div>
             <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Existing Members
+              Existing Trip Members
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
               {trip.members.map((m) => (
                 <div
                   key={m.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-medium"
+                  className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs"
                 >
-                  <div
-                    className="w-3.5 h-3.5 rounded-full"
-                    style={{ backgroundColor: m.color || '#3b82f6' }}
-                  />
-                  <span>{m.name}</span>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                      style={{ backgroundColor: m.color || '#3b82f6' }}
+                    >
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-bold text-slate-900">{m.name}</span>
+                  </div>
+                  <span className="font-mono text-blue-600 font-bold text-[11px]">
+                    @{m.username}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Add New Member Input */}
-          <form onSubmit={handleSubmit} className="pt-2 border-t border-slate-100 space-y-3">
+          {/* Search & Add Registered Member */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Add Friend Manually
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Add Registered Friend by User ID
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Vicky, Neha..."
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-blue-500/20 active:scale-95 transition"
-                >
-                  <UserPlus className="w-4 h-4" />
-                </button>
-              </div>
+              <UserSearchInput
+                selectedUsers={selectedUser ? [selectedUser] : []}
+                onSelectUser={(u) => setSelectedUser(u)}
+                onRemoveUser={() => setSelectedUser(null)}
+              />
             </div>
-          </form>
+
+            {selectedUser && (
+              <button
+                type="button"
+                onClick={handleAdd}
+                disabled={submitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>{submitting ? 'Adding...' : `Add @${selectedUser.username} to Trip`}</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

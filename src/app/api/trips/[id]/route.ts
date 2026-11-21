@@ -1,34 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/store';
-import { calculateAnalytics } from '@/lib/calculations';
+import { supabaseDb } from '@/lib/supabaseStore';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  let trip = db.getTripById(id);
+  try {
+    const { id } = await params;
+    const details = await supabaseDb.getTripWithDetails(id);
 
-  if (!trip) {
-    // Check if code was passed instead of id
-    trip = db.getTripByCode(id);
+    if (!details) {
+      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(details);
+  } catch (err: any) {
+    console.error('Error getting trip details:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  if (!trip) {
-    return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-  }
-
-  const expenses = db.getExpenses(trip.id);
-  const settlements = db.getSettlements(trip.id);
-  const concerns = db.getConcerns(trip.id);
-
-  const analytics = calculateAnalytics(trip.members, expenses, settlements);
-
-  return NextResponse.json({
-    trip,
-    expenses,
-    settlements,
-    concerns,
-    analytics,
-  });
 }

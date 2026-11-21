@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/store';
+import { supabaseDb } from '@/lib/supabaseStore';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; concernId: string }> }
 ) {
   try {
-    const { id, concernId } = await params;
-    const trip = db.getTripById(id) || db.getTripByCode(id);
-    if (!trip) {
-      return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-    }
-
-    const success = db.resolveConcern(trip.id, concernId);
+    const { concernId } = await params;
+    const success = await supabaseDb.resolveConcern(concernId);
     return NextResponse.json({ success });
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error('Error resolving concern:', err);
-    return NextResponse.json({ error: 'Failed to resolve concern' }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

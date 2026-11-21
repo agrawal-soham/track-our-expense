@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Trip, Expense, Member, Concern, Settlement, TripAnalytics } from '@/types';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import AuthScreen from '@/components/AuthScreen';
 import Navbar from '@/components/Navbar';
 import TimelineTab from '@/components/TimelineTab';
 import BalancesTab from '@/components/BalancesTab';
@@ -11,7 +13,6 @@ import AddExpenseModal from '@/components/AddExpenseModal';
 import RaiseConcernModal from '@/components/RaiseConcernModal';
 import CreateTripModal from '@/components/CreateTripModal';
 import AddMemberModal from '@/components/AddMemberModal';
-import UserSwitcherModal from '@/components/UserSwitcherModal';
 import {
   Receipt,
   Scale,
@@ -19,20 +20,21 @@ import {
   BarChart3,
   Plus,
   Loader2,
-  Users,
+  Compass,
 } from 'lucide-react';
 
-export default function Home() {
+function MainApp() {
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+
   const [tripsList, setTripsList] = useState<Trip[]>([]);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [concerns, setConcerns] = useState<Concern[]>([]);
   const [analytics, setAnalytics] = useState<TripAnalytics | null>(null);
-  const [activeMember, setActiveMember] = useState<Member | null>(null);
 
   const [activeTab, setActiveTab] = useState<'timeline' | 'balances' | 'settlements' | 'analytics'>('timeline');
-  const [loading, setLoading] = useState(true);
+  const [loadingTrip, setLoadingTrip] = useState(false);
 
   // Modals state
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -40,12 +42,11 @@ export default function Home() {
   const [selectedExpenseForConcern, setSelectedExpenseForConcern] = useState<Expense | null>(null);
   const [showCreateTrip, setShowCreateTrip] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
-  const [showUserSwitcher, setShowUserSwitcher] = useState(false);
 
-  // Fetch all trips
-  const fetchTrips = async () => {
+  // Fetch all trips for currently authenticated user
+  const fetchMyTrips = useCallback(async (userId: string) => {
     try {
-      const res = await fetch('/api/trips');
+      const res = await fetch(`/api/trips?userId=${userId}`);
       const data = await res.json();
       if (data.trips) {
         setTripsList(data.trips);
@@ -55,12 +56,12 @@ export default function Home() {
       console.error('Error fetching trips:', err);
     }
     return [];
-  };
+  }, []);
 
   // Fetch full details for a trip
   const fetchTripDetails = useCallback(async (tripId: string) => {
     try {
-      setLoading(true);
+      setLoadingTrip(true);
       const res = await fetch(`/api/trips/${tripId}`);
       if (!res.ok) throw new Error('Failed to fetch trip');
       const data = await res.json();
@@ -70,74 +71,64 @@ export default function Home() {
       setSettlements(data.settlements || []);
       setConcerns(data.concerns || []);
       setAnalytics(data.analytics || null);
-
-      // Check stored user profile for this trip in localStorage
-      const storedMemberId = localStorage.getItem(`track_user_${data.trip.id}`);
-      if (storedMemberId) {
-        const found = data.trip.members.find((m: Member) => m.id === storedMemberId);
-        if (found) {
-          setActiveMember(found);
-          return;
-        }
-      }
-
-      // Default to first member
-      if (data.trip.members.length > 0) {
-        setActiveMember(data.trip.members[0]);
-        localStorage.setItem(`track_user_${data.trip.id}`, data.trip.members[0].id);
-      }
     } catch (err) {
       console.error('Error loading trip details:', err);
     } finally {
-      setLoading(false);
+      setLoadingTrip(false);
     }
   }, []);
 
-  // Initial load
+  // Initial load when user logs in
   useEffect(() => {
+    if (!profile) return;
+
     async function init() {
-      const trips = await fetchTrips();
-      // Check URL query parameters for ?join=CODE or ?trip=ID
+      const trips = await fetchMyTrips(profile!.id);
+
+      // Check URL query parameters for ?join=CODE
       const params = new URLSearchParams(window.location.search);
       const joinCode = params.get('join');
-      const tripIdParam = params.get('trip');
-
-      let targetTrip: Trip | undefined;
 
       if (joinCode) {
-        targetTrip = trips.find((t: Trip) => t.code.toUpperCase() === joinCode.toUpperCase());
-        if (!targetTrip) {
-          try {
-            const res = await fetch(`/api/trips?code=${joinCode}`);
-            const data = await res.json();
-            if (data.trip) targetTrip = data.trip;
-          } catch (e) {
-            console.error('Failed to resolve code:', e);
+        try {
+          const res = await fetch(`/api/trips?code=${joinCode}`);
+          const data = await res.json();
+          if (data.trip) {
+            // Join this trip in Supabase
+            await fetch(`/api/trips/${data.trip.id}/join`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: profile!.id }),
+            });
+            const refreshed = await fetchMyTrips(profile!.id);
+            await fetchTripDetails(data.trip.id);
+            return;
           }
+        } catch (e) {
+          console.error('Failed to auto-join trip:', e);
         }
-      } else if (tripIdParam) {
-        targetTrip = trips.find((t: Trip) => t.id === tripIdParam);
       }
 
-      if (targetTrip) {
-        await fetchTripDetails(targetTrip.id);
-      } else if (trips.length > 0) {
+      if (trips.length > 0) {
         await fetchTripDetails(trips[0].id);
-      } else {
-        setLoading(false);
       }
     }
 
     init();
-  }, [fetchTripDetails]);
+  }, [profile, fetchMyTrips, fetchTripDetails]);
 
-  // Handle member selection
-  const handleSelectMember = (member: Member) => {
-    setActiveMember(member);
-    if (activeTrip) {
-      localStorage.setItem(`track_user_${activeTrip.id}`, member.id);
-    }
-  };
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white p-4">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-3" />
+        <p className="text-sm text-slate-300 font-medium">Connecting to Supabase Cloud...</p>
+      </div>
+    );
+  }
+
+  if (!user || !profile) {
+    return <AuthScreen />;
+  }
 
   // Add Expense
   const handleAddExpense = async (expenseData: {
@@ -149,13 +140,15 @@ export default function Home() {
     remarks?: string;
     category: string;
     date: string;
-    createdBy: string;
   }) => {
     if (!activeTrip) return;
     const res = await fetch(`/api/trips/${activeTrip.id}/expenses`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(expenseData),
+      body: JSON.stringify({
+        ...expenseData,
+        createdBy: profile.id,
+      }),
     });
     if (!res.ok) throw new Error('Failed to add expense');
     await fetchTripDetails(activeTrip.id);
@@ -165,7 +158,7 @@ export default function Home() {
   const handleDeleteExpense = async (expenseId: string) => {
     if (!activeTrip) return;
     const res = await fetch(
-      `/api/trips/${activeTrip.id}/expenses/${expenseId}?userId=${activeMember?.id || ''}`,
+      `/api/trips/${activeTrip.id}/expenses/${expenseId}?userId=${profile.id}`,
       { method: 'DELETE' }
     );
     if (!res.ok) {
@@ -184,8 +177,8 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         expenseId,
-        raisedBy: activeMember?.id,
-        raisedByName: activeMember?.name,
+        raisedBy: profile.id,
+        raisedByName: profile.full_name,
         message,
       }),
     });
@@ -232,7 +225,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status,
-        resolvedBy: activeMember?.id,
+        resolvedBy: profile.id,
       }),
     });
     if (!res.ok) {
@@ -248,31 +241,30 @@ export default function Home() {
     name: string;
     description?: string;
     currency: string;
-    creatorName: string;
-    memberNames: string[];
+    memberUserIds: string[];
   }) => {
     const res = await fetch('/api/trips', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        creatorId: profile.id,
+      }),
     });
     if (!res.ok) throw new Error('Failed to create trip');
     const result = await res.json();
 
-    await fetchTrips();
+    const trips = await fetchMyTrips(profile.id);
     await fetchTripDetails(result.trip.id);
-    if (result.creatorMember) {
-      handleSelectMember(result.creatorMember);
-    }
   };
 
-  // Add member manually
-  const handleAddMember = async (name: string) => {
+  // Add registered member
+  const handleAddMember = async (userId: string) => {
     if (!activeTrip) return;
     const res = await fetch(`/api/trips/${activeTrip.id}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ userId }),
     });
     if (!res.ok) throw new Error('Failed to add member');
     await fetchTripDetails(activeTrip.id);
@@ -285,7 +277,7 @@ export default function Home() {
 
   // Pending settlement approvals count for badge
   const pendingApprovalsForMe = settlements.filter(
-    (s) => s.status === 'pending' && s.toUser === activeMember?.id
+    (s) => s.status === 'pending' && s.toUser === profile.id
   ).length;
 
   return (
@@ -293,38 +285,43 @@ export default function Home() {
       {/* Top Navbar */}
       <Navbar
         trip={activeTrip}
-        activeMember={activeMember}
+        currentUser={profile}
         onOpenCreateTrip={() => setShowCreateTrip(true)}
-        onOpenUserSwitcher={() => setShowUserSwitcher(true)}
         onOpenAddMember={() => setShowAddMember(true)}
         tripsList={tripsList}
         onSelectTrip={(id) => fetchTripDetails(id)}
+        onSignOut={signOut}
       />
 
-      {/* Main Container */}
+      {/* Main Content */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 pt-4 pb-24">
-        {loading ? (
+        {loadingTrip ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-            <p className="text-sm">Calculating group math &amp; loading trip...</p>
+            <p className="text-sm font-medium">Syncing with Supabase Cloud...</p>
           </div>
         ) : !activeTrip ? (
-          <div className="text-center py-20 px-4 bg-white rounded-3xl border border-slate-200 shadow-sm max-w-md mx-auto">
-            <Users className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-            <h2 className="text-xl font-bold text-slate-800 mb-2">No active trip selected</h2>
-            <p className="text-sm text-slate-500 mb-6">
-              Create your trip or join an existing one using an invite code.
-            </p>
+          <div className="text-center py-20 px-4 bg-white rounded-3xl border border-slate-200 shadow-sm max-w-md mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center">
+              <Compass className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900">Welcome, {profile.full_name}!</h2>
+              <p className="text-xs text-blue-600 font-mono font-bold mt-0.5">Your User ID: @{profile.username}</p>
+              <p className="text-xs text-slate-500 mt-2 max-w-xs mx-auto">
+                You haven&apos;t joined or created any trips yet. Create your first group trip or have friends add your User ID!
+              </p>
+            </div>
             <button
               onClick={() => setShowCreateTrip(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-md transition"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md shadow-blue-500/20 active:scale-95 transition"
             >
-              + Create a Trip
+              + Create Your First Trip
             </button>
           </div>
         ) : (
           <>
-            {/* View Tab Buttons Bar (Desktop & Tablet) */}
+            {/* View Tab Buttons Bar */}
             <div className="bg-white p-1 rounded-2xl border border-slate-200/90 shadow-2xs mb-5 grid grid-cols-4 gap-1">
               <button
                 onClick={() => setActiveTab('timeline')}
@@ -387,7 +384,7 @@ export default function Home() {
                 trip={activeTrip}
                 expenses={expenses}
                 concerns={concerns}
-                activeMember={activeMember}
+                currentUser={profile}
                 onOpenAddExpense={() => setShowAddExpense(true)}
                 onOpenRaiseConcern={(exp) => {
                   setSelectedExpenseForConcern(exp);
@@ -403,7 +400,7 @@ export default function Home() {
                 trip={activeTrip}
                 memberBalances={analytics.memberBalances}
                 debts={analytics.debts}
-                activeMember={activeMember}
+                currentUser={profile}
                 onQuickSettle={handleQuickSettle}
               />
             )}
@@ -412,7 +409,7 @@ export default function Home() {
               <SettlementsTab
                 trip={activeTrip}
                 settlements={settlements}
-                activeMember={activeMember}
+                currentUser={profile}
                 onRecordSettlement={handleRecordSettlement}
                 onUpdateStatus={handleUpdateSettlementStatus}
               />
@@ -443,7 +440,7 @@ export default function Home() {
         <>
           <AddExpenseModal
             trip={activeTrip}
-            activeMember={activeMember}
+            currentUser={profile}
             isOpen={showAddExpense}
             onClose={() => setShowAddExpense(false)}
             onAddExpense={handleAddExpense}
@@ -452,7 +449,7 @@ export default function Home() {
           <RaiseConcernModal
             trip={activeTrip}
             expense={selectedExpenseForConcern}
-            activeMember={activeMember}
+            currentUser={profile}
             isOpen={showRaiseConcern}
             onClose={() => {
               setShowRaiseConcern(false);
@@ -467,23 +464,23 @@ export default function Home() {
             onClose={() => setShowAddMember(false)}
             onAddMember={handleAddMember}
           />
-
-          <UserSwitcherModal
-            trip={activeTrip}
-            activeMember={activeMember}
-            isOpen={showUserSwitcher}
-            onClose={() => setShowUserSwitcher(false)}
-            onSelectMember={handleSelectMember}
-            onJoinAsNewMember={handleAddMember}
-          />
         </>
       )}
 
       <CreateTripModal
         isOpen={showCreateTrip}
         onClose={() => setShowCreateTrip(false)}
+        currentUser={profile}
         onCreateTrip={handleCreateTrip}
       />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }

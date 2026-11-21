@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trip, Member, Settlement } from '@/types';
+import { Trip, Member, Settlement, UserProfile } from '@/types';
 import {
   HandCoins,
   Check,
@@ -17,7 +17,7 @@ import {
 interface SettlementsTabProps {
   trip: Trip;
   settlements: Settlement[];
-  activeMember: Member | null;
+  currentUser: UserProfile;
   onRecordSettlement: (data: {
     fromUser: string;
     toUser: string;
@@ -31,12 +31,11 @@ interface SettlementsTabProps {
 export default function SettlementsTab({
   trip,
   settlements,
-  activeMember,
+  currentUser,
   onRecordSettlement,
   onUpdateStatus,
 }: SettlementsTabProps) {
   const [showForm, setShowForm] = useState(false);
-  const [fromUser, setFromUser] = useState(activeMember?.id || trip.members[0]?.id || '');
   const [toUser, setToUser] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<'cash' | 'online'>('online');
@@ -50,27 +49,27 @@ export default function SettlementsTab({
   const pendingSettlements = settlements.filter((s) => s.status === 'pending');
   const historySettlements = settlements.filter((s) => s.status !== 'pending');
 
-  // Settlements waiting for activeMember to approve
+  // Settlements waiting specifically for THIS logged-in user to approve
   const myPendingApprovals = pendingSettlements.filter(
-    (s) => s.toUser === activeMember?.id
+    (s) => s.toUser === currentUser.id
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseFloat(amount);
-    if (!fromUser || !toUser || isNaN(num) || num <= 0) {
-      alert('Please select both members and enter a valid payment amount.');
+    if (!toUser || isNaN(num) || num <= 0) {
+      alert('Please select a recipient and enter a valid payment amount.');
       return;
     }
-    if (fromUser === toUser) {
-      alert('Sender and recipient cannot be the same person.');
+    if (currentUser.id === toUser) {
+      alert('You cannot send a settlement to yourself.');
       return;
     }
 
     setSubmitting(true);
     try {
       await onRecordSettlement({
-        fromUser,
+        fromUser: currentUser.id,
         toUser,
         amount: num,
         paymentMode,
@@ -104,7 +103,7 @@ export default function SettlementsTab({
             </div>
             <h2 className="text-xl sm:text-2xl font-black">Direct Settlement Approvals</h2>
             <p className="text-xs sm:text-sm text-blue-100 mt-1 max-w-md">
-              When someone pays you, they log it here. Once you approve it, everyone&apos;s trip balances update instantly!
+              When someone pays you, they log it here. Once you approve it from your account, everyone&apos;s trip balances update instantly in Supabase!
             </p>
           </div>
 
@@ -118,7 +117,7 @@ export default function SettlementsTab({
         </div>
       </div>
 
-      {/* Record Settlement Modal / Collapse Form */}
+      {/* Record Settlement Form */}
       {showForm && (
         <form
           onSubmit={handleSubmit}
@@ -132,28 +131,20 @@ export default function SettlementsTab({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Who Paid */}
+            {/* Who Paid (Locked to Current User) */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Who Paid? (Sender)
               </label>
-              <select
-                value={fromUser}
-                onChange={(e) => setFromUser(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {trip.members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} {m.id === activeMember?.id ? '(You)' : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 font-bold truncate">
+                {currentUser.full_name} <span className="text-blue-600 font-mono text-xs">(@{currentUser.username})</span>
+              </div>
             </div>
 
             {/* Who Received */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Paid To? (Recipient)
+                Paid To? (Recipient) *
               </label>
               <select
                 value={toUser}
@@ -163,10 +154,10 @@ export default function SettlementsTab({
               >
                 <option value="">Select recipient...</option>
                 {trip.members
-                  .filter((m) => m.id !== fromUser)
+                  .filter((m) => m.id !== currentUser.id)
                   .map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} {m.id === activeMember?.id ? '(You)' : ''}
+                      {m.name} (@{m.username})
                     </option>
                   ))}
               </select>
@@ -177,7 +168,7 @@ export default function SettlementsTab({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Amount ({trip.currency})
+                Amount ({trip.currency}) *
               </label>
               <input
                 type="number"
@@ -231,7 +222,7 @@ export default function SettlementsTab({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Sent on GPay / Cash handed during check-out"
+              placeholder="e.g. Sent on GPay / Cash handed during dinner"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -267,7 +258,7 @@ export default function SettlementsTab({
                 Action Required: {myPendingApprovals.length} Payment(s) Waiting For Your Approval
               </h3>
               <p className="text-xs text-amber-800">
-                A friend recorded that they paid you. Please verify and confirm to update balances.
+                A friend recorded that they paid you. Only your account can confirm or reject this.
               </p>
             </div>
           </div>
@@ -283,8 +274,10 @@ export default function SettlementsTab({
                   className="bg-white rounded-xl p-4 border border-amber-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div>
-                    <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <span>{sender?.name || 'Someone'} paid you</span>
+                    <div className="font-bold text-slate-900 text-sm flex items-center gap-2 flex-wrap">
+                      <span>{sender?.name || 'Friend'}</span>
+                      <span className="font-mono text-blue-600 text-xs">@{sender?.username}</span>
+                      <span>paid you</span>
                       <span className="text-lg font-black text-emerald-600">
                         {trip.currency}{s.amount.toLocaleString()}
                       </span>
@@ -336,16 +329,18 @@ export default function SettlementsTab({
             {pendingSettlements.map((s) => {
               const sender = memberMap.get(s.fromUser);
               const recipient = memberMap.get(s.toUser);
-              const isSenderMe = activeMember?.id === s.fromUser;
-              const isRecipientMe = activeMember?.id === s.toUser;
+              const isSenderMe = currentUser.id === s.fromUser;
+              const isRecipientMe = currentUser.id === s.toUser;
 
               return (
                 <div key={s.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                   <div>
-                    <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <div className="font-semibold text-slate-800 flex items-center gap-1.5 flex-wrap">
                       <span>{isSenderMe ? <strong className="text-blue-600">You</strong> : sender?.name}</span>
+                      <span className="font-mono text-slate-400 text-[10px]">@{sender?.username}</span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
                       <span>{isRecipientMe ? <strong className="text-blue-600">You</strong> : recipient?.name}</span>
+                      <span className="font-mono text-slate-400 text-[10px]">@{recipient?.username}</span>
                       <span className="font-bold text-slate-900 ml-1">
                         {trip.currency}{s.amount.toLocaleString()}
                       </span>
@@ -357,8 +352,8 @@ export default function SettlementsTab({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Waiting for {recipient?.name}
+                    <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Waiting for @{recipient?.username}
                     </span>
                   </div>
                 </div>
@@ -392,10 +387,12 @@ export default function SettlementsTab({
                   }`}
                 >
                   <div>
-                    <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <div className="font-semibold text-slate-800 flex items-center gap-1.5 flex-wrap">
                       <span>{sender?.name}</span>
+                      <span className="text-slate-400 font-mono text-[10px]">@{sender?.username}</span>
                       <ArrowRight className="w-3 h-3 text-slate-400" />
                       <span>{recipient?.name}</span>
+                      <span className="text-slate-400 font-mono text-[10px]">@{recipient?.username}</span>
                       <span className="font-black text-slate-900 ml-1">
                         {trip.currency}{s.amount.toLocaleString()}
                       </span>

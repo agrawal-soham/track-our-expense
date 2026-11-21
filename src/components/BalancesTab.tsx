@@ -1,14 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Trip, Member, MemberBalance, SimplifiedDebt } from '@/types';
+import { Trip, MemberBalance, SimplifiedDebt, UserProfile } from '@/types';
 import { ArrowRight, CheckCircle2, TrendingUp, TrendingDown, Scale, HandCoins } from 'lucide-react';
 
 interface BalancesTabProps {
   trip: Trip;
   memberBalances: MemberBalance[];
   debts: SimplifiedDebt[];
-  activeMember: Member | null;
+  currentUser: UserProfile;
   onQuickSettle: (fromId: string, toId: string, amount: number) => void;
 }
 
@@ -16,16 +16,16 @@ export default function BalancesTab({
   trip,
   memberBalances,
   debts,
-  activeMember,
+  currentUser,
   onQuickSettle,
 }: BalancesTabProps) {
-  // Find active member's balance
-  const myBalance = memberBalances.find((b) => b.memberId === activeMember?.id);
+  // Find current logged-in user's balance
+  const myBalance = memberBalances.find((b) => b.memberId === currentUser.id);
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Active User's Personal Status Banner */}
-      {activeMember && myBalance && (
+      {/* Current User's Personal Status Banner */}
+      {myBalance && (
         <div
           className={`p-5 rounded-2xl border shadow-xs transition ${
             myBalance.netBalance > 0.01
@@ -38,7 +38,7 @@ export default function BalancesTab({
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Your Personal Net Status
+                Your Personal Net Position
               </div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">
                 {myBalance.netBalance > 0.01 ? (
@@ -61,8 +61,12 @@ export default function BalancesTab({
             </div>
 
             <div className="text-right text-xs text-slate-500">
-              <div>Total paid: <span className="font-semibold text-slate-800">{trip.currency}{myBalance.totalPaid.toLocaleString()}</span></div>
-              <div>Your share: <span className="font-semibold text-slate-800">{trip.currency}{myBalance.totalShare.toLocaleString()}</span></div>
+              <div>
+                Total paid: <span className="font-semibold text-slate-800">{trip.currency}{myBalance.totalPaid.toLocaleString()}</span>
+              </div>
+              <div>
+                Your fair share: <span className="font-semibold text-slate-800">{trip.currency}{myBalance.totalShare.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -78,13 +82,13 @@ export default function BalancesTab({
             <div>
               <h3 className="font-bold text-slate-900 text-base">Direct Payments Needed</h3>
               <p className="text-xs text-slate-500">
-                Backend calculated with minimum number of transfers
+                Minimizes transactions to eliminate circular IOUs
               </p>
             </div>
           </div>
 
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-            {debts.length} {debts.length === 1 ? 'transaction' : 'transactions'}
+            {debts.length} {debts.length === 1 ? 'transfer' : 'transfers'}
           </span>
         </div>
 
@@ -97,8 +101,8 @@ export default function BalancesTab({
         ) : (
           <div className="divide-y divide-slate-100">
             {debts.map((debt, idx) => {
-              const isSenderMe = activeMember?.id === debt.fromMemberId;
-              const isRecipientMe = activeMember?.id === debt.toMemberId;
+              const isSenderMe = currentUser.id === debt.fromMemberId;
+              const isRecipientMe = currentUser.id === debt.toMemberId;
 
               return (
                 <div
@@ -108,6 +112,7 @@ export default function BalancesTab({
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <span className="font-bold text-slate-900 text-sm">
                       {isSenderMe ? <span className="text-blue-600">You</span> : debt.fromMemberName}
+                      <span className="font-mono text-slate-400 text-xs font-normal ml-1">@{debt.fromUsername}</span>
                     </span>
 
                     <div className="flex items-center gap-1 text-slate-400">
@@ -117,6 +122,7 @@ export default function BalancesTab({
 
                     <span className="font-bold text-slate-900 text-sm">
                       {isRecipientMe ? <span className="text-blue-600">You</span> : debt.toMemberName}
+                      <span className="font-mono text-slate-400 text-xs font-normal ml-1">@{debt.toUsername}</span>
                     </span>
                   </div>
 
@@ -125,7 +131,6 @@ export default function BalancesTab({
                       {trip.currency}{debt.amount.toLocaleString()}
                     </span>
 
-                    {/* Settle button */}
                     <button
                       onClick={() => onQuickSettle(debt.fromMemberId, debt.toMemberId, debt.amount)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition ${
@@ -147,14 +152,14 @@ export default function BalancesTab({
 
       {/* Individual Net Balances Breakdown */}
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5">
-        <h3 className="font-bold text-slate-900 text-base mb-1">All Member Balances</h3>
+        <h3 className="font-bold text-slate-900 text-base mb-1">All Member Standings</h3>
         <p className="text-xs text-slate-500 mb-4">
-          Detailed breakdown of total spent, share consumed, and net standings
+          Detailed breakdown of total spent, consumption share, and net balance
         </p>
 
         <div className="space-y-3">
           {memberBalances.map((m) => {
-            const isMe = activeMember?.id === m.memberId;
+            const isMe = currentUser.id === m.memberId;
 
             return (
               <div
@@ -175,6 +180,7 @@ export default function BalancesTab({
                       <span className="font-bold text-slate-900 text-sm">
                         {m.memberName} {isMe && <span className="text-blue-600 text-xs font-semibold">(You)</span>}
                       </span>
+                      <span className="text-xs font-mono text-blue-600 ml-1.5">@{m.username}</span>
                     </div>
                   </div>
 
@@ -195,7 +201,6 @@ export default function BalancesTab({
                   </div>
                 </div>
 
-                {/* Sub details */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-500 pt-2 border-t border-slate-200/60">
                   <div>
                     Paid for trip: <strong className="text-slate-700">{trip.currency}{m.totalPaid.toLocaleString()}</strong>

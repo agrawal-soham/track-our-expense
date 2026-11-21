@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Trip, Member } from '@/types';
-import { X, Banknote, Smartphone, Check, Sparkles } from 'lucide-react';
+import { Trip, UserProfile } from '@/types';
+import { X, Banknote, Smartphone, Check } from 'lucide-react';
 
 interface AddExpenseModalProps {
   trip: Trip;
-  activeMember: Member | null;
+  currentUser: UserProfile;
   isOpen: boolean;
   onClose: () => void;
   onAddExpense: (data: {
@@ -18,15 +18,22 @@ interface AddExpenseModalProps {
     remarks?: string;
     category: string;
     date: string;
-    createdBy: string;
   }) => Promise<void>;
 }
 
-const CATEGORIES = ['Food & Dining', 'Stay / Hotel', 'Travel & Fuel', 'Tickets & Sightseeing', 'Drinks & Party', 'Shopping', 'General'];
+const CATEGORIES = [
+  'Food & Dining',
+  'Stay / Hotel',
+  'Travel & Fuel',
+  'Tickets & Sightseeing',
+  'Drinks & Party',
+  'Shopping',
+  'General',
+];
 
 export default function AddExpenseModal({
   trip,
-  activeMember,
+  currentUser,
   isOpen,
   onClose,
   onAddExpense,
@@ -34,7 +41,7 @@ export default function AddExpenseModal({
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
-  const [paidBy, setPaidBy] = useState(activeMember?.id || trip.members[0]?.id || '');
+  const [paidBy, setPaidBy] = useState(currentUser.id);
   const [splitBetween, setSplitBetween] = useState<string[]>(trip.members.map((m) => m.id));
   const [paymentMode, setPaymentMode] = useState<'cash' | 'online'>('online');
   const [remarks, setRemarks] = useState('');
@@ -80,10 +87,8 @@ export default function AddExpenseModal({
         remarks: remarks.trim(),
         category,
         date,
-        createdBy: activeMember?.id || paidBy,
       });
       onClose();
-      // Reset form
       setTitle('');
       setAmount('');
       setRemarks('');
@@ -145,7 +150,7 @@ export default function AddExpenseModal({
             </label>
             <input
               type="text"
-              placeholder="e.g. Fort Entry Tickets &amp; Guides, Dinner at Thalassa..."
+              placeholder="e.g. Fort Entry Tickets, Dinner at Thalassa..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -198,7 +203,7 @@ export default function AddExpenseModal({
               >
                 {trip.members.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.name} {m.id === activeMember?.id ? '(You)' : ''}
+                    {m.name} (@{m.username}) {m.id === currentUser.id ? '(You)' : ''}
                   </option>
                 ))}
               </select>
@@ -280,7 +285,10 @@ export default function AddExpenseModal({
                     >
                       {isSelected ? <Check className="w-2.5 h-2.5" /> : m.name.charAt(0)}
                     </div>
-                    <span className="truncate">{m.name}</span>
+                    <div className="truncate">
+                      <div className="truncate">{m.name}</div>
+                      <div className="text-[10px] text-blue-600 font-mono font-normal">@{m.username}</div>
+                    </div>
                   </button>
                 );
               })}
@@ -315,7 +323,7 @@ export default function AddExpenseModal({
               disabled={submitting}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow-md shadow-blue-500/20 active:scale-95 transition"
             >
-              {submitting ? 'Saving...' : 'Add Expense'}
+              {submitting ? 'Saving to Cloud...' : 'Add Expense'}
             </button>
           </div>
         </form>
